@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Push Up Counter </title> 
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
+  </head>
+
+  <body> 
+    <video style="position: fixed; height: 100vh; width: 100%; object-fit: fill; top:0; left:0; z-index: 1;" id="video"></video>
+    <div id="notVisible" style="display: none; position: fixed;  background-color: red; height: 100%; width: 100%; top:0; left:0; opacity: 0.2; z-index: 1;"></div>
+    <div id="visible" style="display: none; position: fixed;  background-color: green; height: 100%; width: 100%; top:0; left:0; opacity: 0.2; z-index: 1"></div>
+    <div id="pushUpCount" style="position: fixed; z-index: 2; right: 0; top:0; border-left: 3px solid green; border-bottom: 3px solid green; background-color: white; color: black; width: 100px; height: 100px; text-align: center; font-size: 75px; border-radius: 0 0 0 30px" >0</div>
+  </body>
+
+  <script>
+    var detector;
+
+    const video = document.getElementById("video")
+    navigator.mediaDevices
+      .getUserMedia({
+        audio: false,
+        video: {
+          facingMode: "user"
+        }
+      })
+      .then(stream => {
+        video.srcObject = stream
+        video.onloadedmetadata = () => {
+          video.play()
+        }
+      })
+
+    setup();
+
+    async function setup() {
+      const detectorConfig = {
+        modelType: poseDetection.movenet.modelType.MULTIPOSE_LIGHTNING,
+        enableTracking: true,
+        trackerType: poseDetection.TrackerType.BoundingBox
+      };
+
+      detector = await poseDetection.createDetector(poseDetection.SupportedModels.MoveNet, detectorConfig);
+      
+      video.onloadeddata = async (event) => {
+        detect();
+      };
+    }
+    
+    var totalPushUps = 0;
+    var poseUp = false;
+    var poseDown = false;
+
+    async function detect() {
+      try {
+          const poses = await detector.estimatePoses(video);
+          let total = 0;
+          let pose = poses[0].keypoints;
+          var allPointsVisible = true;
+          for(let i=5; i<=10; i++) {
+            if(pose[i].score <= 0.4) {
+              allPointsVisible = false;
+            }
+          }
+
+          if(allPointsVisible) {
+            document.getElementById("notVisible").style.display = "none";
+            document.getElementById("visible").style.display = "block";
+
+            let averageWristToElbowDistance = (dist(pose[9].x, pose[9].y, pose[7].x, pose[7].y) + dist(pose[10].x, pose[10].y, pose[8].x, pose[8].y))/2;
+            let averageElbowToShoulderDistance = (dist(pose[5].x, pose[5].y, pose[7].x, pose[7].y) + dist(pose[6].x, pose[6].y, pose[8].x, pose[8].y))/2;
+            let averageShoulderHeight = (pose[5].y + pose[6].y)/2;
+            let averageElbowHeight = (pose[7].y + pose[8].y)/2;
+
+            if(match(averageWristToElbowDistance, averageElbowToShoulderDistance, 0.01)) {
+              poseUp = true;
+            } 
+
+            if(match(averageElbowHeight, averageShoulderHeight, 0.3)) {
+              poseDown = true;
+            } 
+
+            if(poseUp && poseDown) {
+              totalPushUps++;
+              document.getElementById("pushUpCount").innerHTML = totalPushUps;
+              poseUp = false;
+              poseDown = false;
+            }
+
+            requestAnimationFrame(detect);
+          } else { 
+            document.getElementById("notVisible").style.display = "block";
+            document.getElementById("visible").style.display = "none";
+
+            requestAnimationFrame(detect);
+          }
+      } catch(e) {
+        requestAnimationFrame(detect);
+      }
+    }
+
+    function dist(x1, y1, x2, y2) {
+      return Math.sqrt((x2-x1)*(x2-x1) + (y2-y1)*(y2-y1))
+    }
+
+    function match(a, b, percent) {
+      let boundGap1 = a - (percent*a); 
+      let boundGap2 = a + (percent*a);
+      if(b >= boundGap1 && b <= boundGap2) {
+        return true;
+      }
+      return false;
+    }
+  </script>
+</html>
