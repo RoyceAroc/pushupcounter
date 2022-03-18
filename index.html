@@ -60,7 +60,7 @@
           let pose = poses[0].keypoints;
           var allPointsVisible = true;
           for(let i=5; i<=10; i++) {
-            if(pose[i].score <= 0.4) {
+            if(pose[i].score <= 0.3) {
               allPointsVisible = false;
             }
           }
@@ -78,7 +78,7 @@
               poseUp = true;
             } 
 
-            if(match(averageElbowHeight, averageShoulderHeight, 0.2)) {
+            if(match(averageElbowHeight, averageShoulderHeight, 0.25)) {
               poseDown = true;
             } 
 
